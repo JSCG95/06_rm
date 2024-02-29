@@ -295,10 +295,12 @@ The general correlation matrix model consumed **6 more dfs** than the default mo
 This model **decreased AIC** but **increased BIC** compared to the default model. Here's an interesting case where the different metrics do not agree.  
 
 # Model 4 - Autoregressive order 1 (AR1)  
+corCAR1 --> Only one that incorporates different intervals. DIFFERENT INTERVALS. 
 ```{r}
 mod4_ar1 <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation = corAR1(form = ~dap),
 
   data = rm_rcbd_df)
 
@@ -328,11 +330,13 @@ anova(mod1_default,
 ```
 AR1 model had the same dfs and fit metrics as the CS model.  
   
-# Model 5 - Autoregressive order moving average (ARMA11)  
+# Model 5 - Autoregressive order moving average (ARMA11)
+q --> order of moving average. 
 ```{r}
 mod5_arma11 <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation = corARMA(p = 1, q = 1),
 
   data = rm_rcbd_df)
 
@@ -348,6 +352,9 @@ ACF(mod5_arma11, resType = "n") %>%
 Autocorrelation at lags = 1 and 2 are still significant.
 
 ## intervals  
+If lower boundary negative and upper positive , not significantly different from zero. 
+
+If both either negative or positive 
 ```{r}
 intervals(mod5_arma11, which = "var-cov")
 ```
@@ -367,12 +374,16 @@ Let's fit our first **spatial** correlation structure.
 mod6_exp <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation = corExp(form = ~ dap),
 
   data = rm_rcbd_df)
 
 mod6_exp
 ```
 Notice how we have a **range** estimate above, which is the estimated correlation parameter for spatial models.  
+
+- Correlation and semivariogram opposite concepts. 
+- Here we give an estimate of the range --> Point after which semivariogram plateous out. Where is the break point of time or distances where  is considered a correlation 
 
 ## empirical autocorrelation function  
 ```{r}
@@ -416,6 +427,7 @@ Thus, our best candidate remains model 3 (general).
 mod7_gaus <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation = corGaus(form = ~dap),
 
   data = rm_rcbd_df)
 
@@ -458,6 +470,7 @@ Thus, our best candidate remains model 3 (general).
 mod8_lin <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation =  corLin(form = ~ dap),
 
   data = rm_rcbd_df)
 
@@ -502,6 +515,7 @@ Thus, our best candidate remains model 3 (general).
 mod9_rq <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation = corRatio(form = ~ dap),
 
   data = rm_rcbd_df)
 
@@ -545,6 +559,7 @@ Thus, our best candidate remains model 3 (general).
 mod10_sph <- lme(
   yield_kgha ~ krate_kgha*nrate_kgha*fdap,
   random = ~ 1|block/krate_kgha/nrate_kgha,
+  correlation = corSpher(form = ~ dap),
 
   data = rm_rcbd_df)
 
@@ -576,7 +591,13 @@ range interval does not include 0, so it is significant.
 ```{r}
 anova(mod1_default, 
       mod2_cs, mod3_gen, mod4_ar1, mod5_arma11,
-      mod6_exp, mod7_gaus, mod8_lin, mod9_rq, mod10_sph) 
+      mod6_exp, mod7_gaus, mod8_lin, mod9_rq, mod10_sph) %>%
+  as.data.frame() %>% 
+  rownames_to_column(var = 'modelname') %>%
+  janitor::clean_names() %>%
+  dplyr::select(modelname, model,df,aic,bic) %>%
+  arrange(aic) %>%
+  arrange(bic)
 
 ```
 After fitting the default model and comparing it to other 9 models that included serial and spatial correlation structures, we found that:  
@@ -688,6 +709,10 @@ Anova(mod3_gen, type = 3)
 > Looking at the ANOVA table above, which means would you extract?  
 
 ## K x N x dap interaction  
+Compare dap between krate and nrate
+This will impact how means are compared --> fdap|krate_kgha:nrate_kgha
+
+This is what we specify based on our research question.
 ```{r}
 rm_rcbd_cld_kndap <- emmeans(mod3_gen, ~fdap|krate_kgha:nrate_kgha) %>%
   cld(reversed = T,
@@ -779,6 +804,7 @@ ggplot(mapping = aes(fill = fdap))+
         legend.position = "none")
 
 ```
+REMEMBER: Impact of repeted measures relies in the ERROR!
 
 Not too many differences in inference from both models when it comes to the letter display.  
 
